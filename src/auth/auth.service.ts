@@ -1,13 +1,15 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { RegisterUserDto } from 'src/DTO/registerUser.dto';
 import { UserEntity } from 'src/Entity/user.entity';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
+import { LogUserDto } from 'src/DTO/logUser.dto';
+import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
 export class AuthService {
-    constructor(@InjectRepository(UserEntity) private repo: Repository<UserEntity>) {}
+    constructor(@InjectRepository(UserEntity) private repo: Repository<UserEntity>, private jwt: JwtService ) {}
 
 
     async registerUser(registerDto:RegisterUserDto) {
@@ -32,5 +34,22 @@ export class AuthService {
 
         }
         
+    }
+
+    async loginUser(logUserDto: LogUserDto) {
+        const {username, password} = logUserDto;
+        const user = await this.repo.findOne({username});
+        if(!user) {
+            throw new  UnauthorizedException('Invalid Operation.');
+        }
+        const isPasswordMatch = await bcrypt.compare(password, user.password);
+        if (isPasswordMatch) {
+            const jwtPayload = {username};
+            const jwtToken = await this.jwt.signAsync(jwtPayload, {expiresIn: '1d', algorithm:'HS512'});
+            return {tokent: jwtToken};
+        }
+        else {
+            throw new  UnauthorizedException('Invalid Operation.');
+        }
     }
 }
